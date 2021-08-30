@@ -19,7 +19,6 @@ from scipy.special import gammaln
 from scipy import optimize
 import math
 import matplotlib.pyplot as plt
-from scipy.special import loggamma
 from scipy.special import beta as Betaf
 from scipy.optimize import minimize_scalar
 import pylab
@@ -30,8 +29,6 @@ import numba
 
 print(scipy.__version__)
 
-
-def print(*args, **kwargs): pass
 
 
 """
@@ -52,33 +49,38 @@ with warnings.catch_warnings():
 
 
 """
-@numba.jit
-def Betal(x,y):
-    return gammaln(x)+gammaln(y) - gammaln(x+y)
 
-@numba.jit
+#def Betal(x,y):
+#    return gammaln(x)+gammaln(y) - gammaln(x+y)
+
+@numba.vectorize
+def Betal(x, y):
+    # numba doesn't understand scipy.special.gammaln, but it understands math.lgamma,
+    # which is the same, except that it doesn't understand arrays.
+    return math.lgamma(x) + math.lgamma(y) - math.lgamma(x+y)
+
+@numba.vectorize
 def fact(x):
-    return(gammaln(x+1))
+    return math.lgamma(x + 1)
 
-
+@numba.njit
 def forward(A,B,pi,data):
-    N= np.shape(A)[0]
-    T= np.shape(data)[0]
-    alpha=np.zeros((T,N))
-    alpha_p=np.zeros((T,N))
-    scale=np.zeros(T)
+    N = A.shape[0]
+    T = data.shape[0]
+    alpha = np.zeros((T,N))
+    alpha_p = np.zeros((T,N))
+    scale = np.zeros(T)
 
-    alpha[0,:]= (pi) * B[:,0]
-    alpha_p[0,:]= alpha[0,:]/sum(alpha[0,:])
-    scale[0]=sum(alpha[0,:])
+    alpha[0,:] = pi * B[:,0]
+    alpha_p[0,:] = alpha[0,:] / alpha[0,:].sum()
+    scale[0] = alpha[0,:].sum()
 
     for t in range(1,T):
         alpha[t,:]= (alpha_p[t-1,:] @ A) * B[:,t]
-        alpha_p[t,:]= alpha[t,:]/sum(alpha[t,:])
-        scale[t]=sum(alpha[t,:])
+        alpha_p[t,:]= alpha[t,:] / alpha[t,:].sum()
+        scale[t] = alpha[t,:].sum()
 
     return alpha_p, scale
-
 
 
 def backward(A, B, data, scale):
@@ -111,12 +113,6 @@ def mu_var2a_b(mu,var):
 
 
 
-a= 9999.940396635693
-meanp= 0.06
-k= np.zeros(220)
-#data=data
-
-
 import numba
 
 @numba.njit
@@ -124,18 +120,16 @@ def objective(a, meanp, k, data):
     #print('a=',a)
     #print('meanp=',meanp)
     #print('k=',k)
-    
+
     cost=0
 
     b=a * (1-meanp)/meanp
 
     for w in range(len(data)):
 
-        # ll = ( # (fact(data[w,1]) - fact(data[w,0]) - fact(data[w,1]-data[w,0]))
-        #     Betal(data[w,0]+a, data[w,1]-data[w,0]+b) - Betal(a,b))
-        #    ll = Betal(data[w,0]+a, data[w,1]-data[w,0]+b)
-        print('data =', data[w,1])
-        ll = fact(data[w,1])
+        ll = ( (fact(data[w,1]) - fact(data[w,0]) - fact(data[w,1]-data[w,0]))
+               +
+               Betal(data[w,0]+a, data[w,1]-data[w,0]+b) - Betal(a,b) )
 
         Wll= ll * k[w]
 
@@ -424,11 +418,11 @@ def hmm():
     #with open(phalf,"r") as f:
         #p_12=float(f.read())
     """
-    
+
     d=stats.uniform(100, 200).rvs(220)
     n=stats.uniform(500, 800).rvs(220)
     win=220
-    
+
     p_1=0.24
     p_12=p_1/2
     inerror=p_12/2
@@ -625,3 +619,26 @@ def bigTable(tables, alltable):
 
     with pd.option_context('display.max_rows', len(bigtable.index), 'display.max_columns', len(bigtable.columns)):
         bigtable.to_csv(alltable, sep=',')
+
+
+
+if __name__ == '__main__':
+    a = 9999.940396635693
+    meanp = 0.06
+    k = np.arange(220)
+
+    d=stats.uniform(100, 200).rvs(220)
+    n=stats.uniform(500, 800).rvs(220)
+    win=220
+
+    p_1=0.24
+    p_12=p_1/2
+    inerror=p_12/2
+    initial_p=np.array([[(p_1+p_12)/2,p_1,p_12],
+                        [p_12,p_1,inerror],
+                        [inerror,p_1, inerror]])
+
+    data=np.vstack((d, n)).T
+
+    x = objective(a, meanp, k, data)
+    print(x)
