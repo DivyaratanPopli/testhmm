@@ -63,7 +63,7 @@ def Betal(x, y):
 def fact(x):
     return math.lgamma(x + 1)
 
-@numba.njit
+#@numba.njit
 def forward(A,B,pi,data):
     N = A.shape[0]
     T = data.shape[0]
@@ -101,19 +101,7 @@ def backward(A, B, data, scale):
     return beta_p
 
 
-def a_b2mu_var(a,b):
-    mu= a/(a+b)
-    var= (a*b) / (((a+b)**2) * (a+b+1))
-    return mu,var
 
-def mu_var2a_b(mu,var):
-    a= (((1-mu)/var) - (1/mu)) * (mu**2)
-    b= a * (1/mu - 1)
-    return a,b
-
-
-
-import numba
 
 @numba.njit
 def objective(a, meanp, k, data):
