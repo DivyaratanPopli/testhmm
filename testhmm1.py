@@ -63,7 +63,7 @@ def Betal(x, y):
 def fact(x):
     return math.lgamma(x + 1)
 
-#@numba.njit
+@numba.njit
 def forward(A,B,pi,data):
     N = A.shape[0]
     T = data.shape[0]
@@ -270,7 +270,7 @@ def baum_welch(data, hbd, A, B, pos, p1avg, update_transition, inbr, x0, max_ite
     bnd_id= bnd_calc(mean_p=mean_id, dist=di, propvar=1/2)
     bnd_inb= bnd_calc(mean_p=mean_inb, dist=di, propvar=1)
 
-    pi=[1/3,1/3,1/3]
+    pi = np.array([1/3,1/3,1/3])
 
     while diff > 0.000001 and n_iter<max_iter:
 
